@@ -1,0 +1,13 @@
+name: vast_env
+channels:
+- conda-forge
+- bioconda
+- auto
+- defaults
+dependencies:
+- biopython=1.68
+- numpy=1.13.3
+- pandas=0.20.3
+- python=2.7.14
+- pip:
+  - ascii_graph
