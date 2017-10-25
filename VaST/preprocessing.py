@@ -1,20 +1,16 @@
 import argparse
 import logging
-import time
 import os
-import numpy as np
-import pandas as pd
-from utils import Project_Directory, History
-from utils import positive_int, percent, path, file_type, config_logging
-from utils import BASES, AMBIGUOUS
-from utils import read_list_file
-from Amplicon_Filter import AmpliconFilter
+import time
 from multiprocessing import Pool
 
-# Pattern Matrix Object
-# Update module, given a pattern and an amplicon, either adds 
-# the pattern if it is new or appends the amplicon to the pattern
-# has a function which turns this into JSON object
+import numpy as np
+import pandas as pd
+
+from Amplicon_Filter import AmpliconFilter
+from utils import (AMBIGUOUS, BASES, History, Project_Directory,
+                   config_logging, file_type, path, percent, positive_int,
+                   read_list_file)
 
 
 def _get_strains_from_file(matrix, sep="\t"):
@@ -47,6 +43,7 @@ def _get_strains_from_file(matrix, sep="\t"):
     logger.debug(
         "Strains:\n%s", "\n".join(strains))
     return strains
+
 
 def _get_sites_from_file(matrix, sep="\t"):
     """Get sites from first column in matrix
@@ -142,6 +139,7 @@ def _remove_strains(exclude_strains, strains):
         "\n".join(strains))
     return strains
 
+
 def _set_parameters(**kwargs):
     for key, value in [("strict", False),
                        ("skip_filter", False),
@@ -155,7 +153,12 @@ def _set_parameters(**kwargs):
                        ("n_threads", 1)]:
         if key not in kwargs:
             kwargs[key] = value
+        # Important for when this parameter is used
+        # for checking overlap in pattern_selection
+        if kwargs['skip_filter']:
+            kwargs['pz_size'] = 0
     return kwargs
+
 
 def _parse_var_matrix(var_matrix_path, strains, sep):
     return pd.read_csv(
@@ -163,19 +166,21 @@ def _parse_var_matrix(var_matrix_path, strains, sep):
         usecols=strains, dtype=str).apply(
             lambda x: x.str.upper(), axis=0).as_matrix()
 
+
 def _get_flags_helper(chunk):
     logger = logging.getLogger(__name__)
     logger.info(
         "On chunk: %s - %s", chunk.index.min(),
         chunk.index.max())
     chunk = chunk.apply(
-    lambda x: x.str.upper(), axis=1)
+        lambda x: x.str.upper(), axis=1)
     return chunk.apply(
-                _non_conserved_strain_count, axis=1)                
+        _non_conserved_strain_count, axis=1)
+
 
 def _get_flags_from_full_matrix(
-    full_matrix_path, strains, strain_cutoff,
-    sep, n_threads, outfile):
+        full_matrix_path, strains, strain_cutoff,
+        sep, n_threads, outfile):
     ''' 
     Get dictionary of flagged primer zone regions 
     Returns a dictionary key: Genome ID 
@@ -195,13 +200,13 @@ def _get_flags_from_full_matrix(
             ", ".join(missing_strains))
         logger.error(err)
         raise IOError(err)
-    
+
     chunk_size = len(
-        full_matrix_sites)/n_threads if len(
-            full_matrix_sites)/n_threads < 50000 else 50000
+        full_matrix_sites) / n_threads if len(
+            full_matrix_sites) / n_threads < 50000 else 50000
     full_matrix = pd.read_csv(
-            full_matrix_path, delimiter=sep, usecols=strains,
-            iterator=True, chunksize=chunk_size, dtype=str)
+        full_matrix_path, delimiter=sep, usecols=strains,
+        iterator=True, chunksize=chunk_size, dtype=str)
 
     # For now assume that all sites are there
     # TODO: fill in missing sites with flags and warn
@@ -223,12 +228,12 @@ def _get_flags_from_full_matrix(
     # Adjust for strain cutoff
     flags = np.less(flags, strain_cutoff)
     # Split into dictionary by genome
-    # TODO: Add check that no sites are missing 
+    # TODO: Add check that no sites are missing
     flags = pd.DataFrame({"Genome": full_matrix_sites[:, 0],
                           "Site": full_matrix_sites[:, 1],
                           "Flag": flags})
     logger.info("Writing flags to %s", outfile)
-    flags[['Site','Genome','Flag']].to_csv(outfile, index=False)
+    flags[['Site', 'Genome', 'Flag']].to_csv(outfile, index=False)
 
     flag_dic = {}
     for name, group in flags.groupby('Genome'):
@@ -252,7 +257,7 @@ def _non_conserved_strain_count(call_data):
         # Count minority snps
         flag_count += sum(snp_list) - max(snp_list)
     return flag_count
-  
+
 
 def _get_unambiguous_sites(calls):
     return not np.any(
@@ -260,7 +265,7 @@ def _get_unambiguous_sites(calls):
             lambda call: [a in call for a in AMBIGUOUS],
             np.unique(calls)))
 
-        
+
 def _remove_ambiguous_sites(var_matrix, sites):
     unambiguous_sites = np.array(
         map(_get_unambiguous_sites, var_matrix),
@@ -270,7 +275,7 @@ def _remove_ambiguous_sites(var_matrix, sites):
 
 
 def preprocessing(project_directory, var_matrix_path,
-                     full_matrix_path, **kwargs):
+                  full_matrix_path, **kwargs):
     """
     Groups variant sites into amplicon windows and filters
     out any amplicons that do not have well conserved
@@ -308,12 +313,10 @@ def preprocessing(project_directory, var_matrix_path,
                     "or missing data were removed".format(
                         n_sites_before - len(sites)))
 
-
     history.add_path("Variant Site Matrix File", var_matrix_path)
     history.add_path("Full Genome Matrix File", full_matrix_path)
     history.add_parameter("Number of Sites", len(sites))
     history.add_parameter("Number of Strains", len(strains))
-    
 
     _check_inputs(args["pz_size"],
                   args["pz_filter_length"],
@@ -332,7 +335,7 @@ def preprocessing(project_directory, var_matrix_path,
             args["strain_cutoff"], args["sep"],
             args["n_threads"],
             flag_file)
-     
+
     amplicon_filter = AmpliconFilter(
         sites, var_matrix, flag_dic,
         args['window'], args['pz_size'],
@@ -340,7 +343,7 @@ def preprocessing(project_directory, var_matrix_path,
         args['pz_filter_percent'],
         args['strict'])
 
-    if not args['skip_filter']:    
+    if not args['skip_filter']:
         patterns = amplicon_filter.filter_amplicons_get_patterns()
 
     else:
@@ -352,10 +355,10 @@ def preprocessing(project_directory, var_matrix_path,
                 sites, site)
         patterns = amplicon_filter.get_patterns()
     # Write patterns to a json file
-    patterns.to_json(
-            project_directory.make_new_file(
-                "patterns", "patterns", "json"),
-                list(strains))
+    pattern_json_file = project_directory.make_new_file(
+        "patterns", "patterns", "json")
+    patterns.to_json(pattern_json_file, list(strains))
+    history.add_path("PATTERN JSON", pattern_json_file)
 
     # Write history
     logger.info("FINISHED Preprocessing")
@@ -463,11 +466,10 @@ if __name__ == "__main__":
         help="Number of threads for multiprocessing"
     )
 
-
     ARGS = PARSER.parse_args()
 
     # Make project directory instance
-        # Set up project tree
+    # Set up project tree
     # Project_Name_Y_M_D_H_M_S
     # ---- patterns
     # ---- history
@@ -475,16 +477,16 @@ if __name__ == "__main__":
     PROJECT_DIR = Project_Directory(
         ARGS.project_dir, ARGS.project_name,
         ["patterns", "logs", "history", "flags"])
-    
+
     config_logging(
         os.path.join(
             PROJECT_DIR.get_sub_directory("logs"),
             "{0}_preprocessing.log".format(
                 PROJECT_DIR.project_name)), ARGS.log)
-    
+
     SEP = {'comma': ',',
-       'space': ' ',
-       'tab': '\t'}[ARGS.sep]
+           'space': ' ',
+           'tab': '\t'}[ARGS.sep]
 
     PARAMS = {"strict": ARGS.strict,
               "skip_filter": ARGS.skip_filter,
@@ -496,7 +498,6 @@ if __name__ == "__main__":
               "exclude_strains": ARGS.exclude_strains,
               "sep": SEP,
               "n_threads": ARGS.threads}
-    
 
     preprocessing(
         PROJECT_DIR, ARGS.var_matrix_path,

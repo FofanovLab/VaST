@@ -1,15 +1,14 @@
-import pandas as pd
-import numpy as np
-from itertools import combinations
-import os.path
-import logging
-from functools import partial
-from multiprocessing import Pool
 import argparse
 import datetime
-import Bio.Data.IUPACData as IUPACalphabet
+import glob
+import logging
+import os.path
+from functools import partial
+from itertools import combinations
+from multiprocessing import Pool
 
-
+import numpy as np
+import pandas as pd
 
 BASES = ['A', 'C', 'T', 'G']
 AMBIGUOUS_DICT = {
@@ -38,13 +37,47 @@ class Project_Directory:
         self.timestamp = datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
         self.project_name = "{0}_{1}".format(project_name, self.timestamp)
         self.project_path = os.path.join(
-            os.path.abspath(path), "{0}/".format(self.project_name))  
+            os.path.abspath(path), "{0}/".format(self.project_name))
         self.sub_dirs = {
             sub_dir: self.prepend_path(sub_dir) for sub_dir in sub_dirs}
         self._make_directory_tree()
         self.parent_dirs = {
             parent_dir: os.path.abspath(os.path.join(self.project_path, '..', parent_dir))
             for parent_dir in parent_dirs}
+
+    def get_sub_directory(self, sub_directory_name):
+        return self.sub_dirs[sub_directory_name]
+
+    def get_parent_subdirectory(self, parent_directory_name):
+        return self.parent_dirs[parent_directory_name]
+
+    def get_parent_subdirectory_file(
+            self, parent_directory_name, file_name):
+        return glob.glob(os.path.join(
+            self.get_parent_subdirectory(
+                parent_directory_name),
+            file_name))[0]
+
+    def get_parent_directory_timestamp(self):
+        return "_".join(self.get_parent_directory().split('/')[-1].split("_")[-2:])
+
+    def get_parent_directory(self):
+        return os.path.abspath(os.path.join(self.project_path, '../'))
+
+    def prepend_path(self, sub_directory_name):
+        return os.path.join(self.project_path, "{}/".format(sub_directory_name))
+
+    def make_subdirectory(self, sub_directory):
+        os.mkdir(sub_directory)
+
+    def new_sub_directory(self, sub_directory_name):
+        self.sub_dirs[sub_directory_name] = self.prepend_path(
+            sub_directory_name)
+
+    def make_new_file(self, sub_directory_name, file_name, extension="txt"):
+        return os.path.join(
+            self.get_sub_directory(sub_directory_name),
+            "{0}_{1}.{2}".format(file_name, self.timestamp, extension))
 
     def _make_directory_tree(self):
         """ Creates a directory tree. The root of the tree is the Project_Directory
@@ -57,46 +90,49 @@ class Project_Directory:
         for sub_dir in self.sub_dirs.values():
             self.make_subdirectory(sub_dir)
 
-    def get_sub_directory(self, sub_directory_name):
-        return self.sub_dirs[sub_directory_name]
-
-    def get_parent_directory(self, parent_directory_name):
-        return self.parent_dirs[parent_directory_name]
-
-    def prepend_path(self, sub_directory_name):
-        return os.path.join(self.project_path, "{}/".format(sub_directory_name))
-
-    def make_subdirectory(self, sub_directory):
-        os.mkdir(sub_directory)
-
-    def new_sub_directory(self, sub_directory_name):
-        self.sub_dirs[sub_directory_name] = self.prepend_path(sub_directory_name)
-
-    def make_new_file(self, sub_directory_name, file_name, extension="txt"):
-        return os.path.join(
-            self.get_sub_directory(sub_directory_name),
-            "{0}_{1}.{2}".format(file_name, self.timestamp, extension))
-
-
 class History:
     def __init__(self, history_path, program_name,
-                 timestamp, path_dict={}, param_dict={},
-                 other_dict={}):
-        self.file = history_path
-        self.program_name = program_name
-        self.path_dict = path_dict
-        self.param_dict = param_dict
-        self.other_dict = other_dict
-        self.timestamp = timestamp
+                 timestamp=None, path_dict={}, param_dict={},
+                 other_dict={}, exists=False):
+        self._file = history_path
+        self._program_name = program_name
+        self._path_dict = path_dict
+        self._param_dict = param_dict
+        self._other_dict = other_dict
+        self._timestamp = timestamp
+        if exists:
+            self._read_history()
 
     def add_path(self, path_name, path):
-        self.path_dict[path_name] = path
+        self._path_dict[path_name] = path
 
     def add_parameter(self, parameter_name, parameter):
-        self.param_dict[parameter_name] = parameter
+        self._param_dict[parameter_name] = parameter
 
     def add_other(self, other_name, other):
-        self.other_dict[other_name] = other
+        self._other_dict[other_name] = other
+
+    def get_parameter(self, parameter_name):
+        return self._param_dict[parameter_name]
+
+    def get_path(self, path_name):
+        return self._path_dict[path_name]
+
+    def get_other(self, other_name):
+        return self._other_dict[other_name]
+
+    def write(self):
+        with open(self._file, 'w') as history_out:
+            history_out.write(
+                "PROGRAM: {0}\nTIMESTAMP: {1}\n".format(
+                    self._program_name, self._timestamp))
+            form = "{0}: {1}\n"
+            if self._path_dict:
+                self._write_dict(history_out, "PATHS", self._path_dict)
+            if self._param_dict:
+                self._write_dict(history_out, "PARAMETERS", self._param_dict)
+            if self._other_dict:
+                self._write_dict(history_out, "OTHER", self._other_dict)
 
     def _write_dict(self, handle, name, dic):
         handle.write("{}:\n".format(name))
@@ -104,18 +140,22 @@ class History:
             handle.write(
                 "{0}: {1}\n".format(name.upper(), value))
 
-    def write(self):
-        with open(self.file, 'w') as history_out:
-            history_out.write(
-                "PROGRAM: {0}\nTIMESTAMP: {1}\n".format(
-                    self.program_name, self.timestamp))
-            form = "{0}: {1}\n"
-            if self.path_dict:
-                self._write_dict(history_out, "PATHS", self.path_dict)
-            if self.param_dict:
-                self._write_dict(history_out, "PARAMETERS", self.param_dict)
-            if self.other_dict:
-                self._write_dict(history_out, "OTHER", self.other_dict)
+    def _read_history(self):
+        with open(self._file, 'rU') as infile:
+            dic_type = {
+                "PATHS": self._path_dict,
+                "PARAMETERS": self._param_dict,
+                "OTHER": self._other_dict}
+            current_dic = None
+            infile.readline()
+            infile.readline()
+            for line in infile:
+                key, value = line.strip().split(":")
+                if not value and key in dic_type:
+                    current_dic = dic_type[key]
+                else:
+                    current_dic[key] = value.strip()
+
 
 # ARGPARSE types
 def positive_int(input_val):
@@ -128,6 +168,7 @@ def positive_int(input_val):
         raise argparse.ArgumentTypeError("Not a positive integer")
     return input_val
 
+
 def percent(input_val):
     ''' Make percent type for argparse'''
     try:
@@ -138,10 +179,12 @@ def percent(input_val):
         raise argparse.ArgumentTypeError("Not a percent")
     return input_val
 
+
 def path(input_path):
     if not os.path.isdir(input_path):
         raise argparse.ArgumentTypeError("Not a valid path")
     return os.path.abspath(input_path)
+
 
 def file_type(input_file):
     if not os.path.isfile(input_file):
@@ -149,6 +192,7 @@ def file_type(input_file):
     return os.path.abspath(input_file)
 
 #########
+
 
 def parse_NASP(nasp_file_name, sep="\t", split="#SNPcall", **kwargs):
     """
@@ -199,10 +243,12 @@ def config_logging(log_file_name, level):
     else:
         raise IOError("Invalid log file path")
 
+
 def read_list_file(file_name, sep="\n", dtype=str):
     with open(file_name, 'rU') as handle:
         return np.genfromtxt(
             handle, delimiter=sep, dtype=dtype)
+
 
 def parallel_apply(df, func, threads, axis, **kwargs):
     num_partitions = df.shape[axis] // threads
@@ -218,7 +264,8 @@ def parallel_apply(df, func, threads, axis, **kwargs):
 
 
 def normalize(value, _max, _min=0):
-    return (value - _min)/ float(_max - _min)
+    return (value - _min) / float(_max - _min)
+
 
 def parallel_apply_helper(df, func, axis):
     return df.apply(func, axis=axis)
@@ -279,13 +326,14 @@ def cartesian_product(arr, out=None, dtype="S5"):
         out = np.zeros([n, len(arrays)], dtype=dtype)
 
     m = n / arrays[0].size
-    out[:,0] = np.repeat(arrays[0], m)
+    out[:, 0] = np.repeat(arrays[0], m)
     if arrays[1:]:
         cartesian_product(
-            arrays[1:], out=out[0:m,1:], dtype=dtype)
+            arrays[1:], out=out[0:m, 1:], dtype=dtype)
         for j in xrange(1, arrays[0].size):
-            out[j*m:(j+1)*m,1:] = out[0:m,1:]
+            out[j * m:(j + 1) * m, 1:] = out[0:m, 1:]
     return out
+
 
 def get_ambiguous_pattern(feature, feature_categories):
     pattern = []

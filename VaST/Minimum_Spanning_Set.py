@@ -1,22 +1,24 @@
-import pandas as pd
-import numpy as np
 import logging
-from utils import cartesian_product, parallel_apply, get_ambiguous_pattern
-from utils import normalize
-from ascii_graph import Pyasciigraph
-from Pattern import Patterns, Resolution_Pattern
-from multiprocessing import Pool
-from functools import partial
 from collections import Counter
+from functools import partial
 from itertools import chain
+from multiprocessing import Pool
 
+import numpy as np
+import pandas as pd
+from ascii_graph import Pyasciigraph
+
+from Pattern import Patterns, Resolution_Pattern
+from utils import (cartesian_product, get_ambiguous_pattern, normalize,
+                   parallel_apply)
 
 
 class MinSet:
     def __init__(self, patterns, n_threads=1):
-        
+
         self._logger = logging.getLogger(__name__)
         self._n_threads = n_threads
+        self._patterns = patterns
         self._resolution_patterns = patterns.get_resolution_levels()
         self._max_resolution_score = self._get_max_resolution_score()
         self._current_is_ambiguous = None
@@ -24,24 +26,38 @@ class MinSet:
         self._update_patterns = None
         self._score_patterns = None
         self._selected_patterns = []
+        self._selected_amplicons = []
         self._required_patterns = patterns.get_required_patterns()
         self._get_next_resolution_level()
         self._current_resolution_score = self._max_resolution_score
         self._current_resolution = self._init_resolution()
         self._resolution_index = self._get_resolution_index()
+        self._pz_size = None
+
+    def get_resolution_index(self):
+        return self._resolution_index
+
+    def get_resolution_groups(self):
+        return np.unique(
+            Counter(
+                chain(
+                    self._current_resolution)).values(),
+            return_counts=True)
 
     def get_resolution_score(self):
         return self._current_resolution_score
 
-    def get_resolution_index(self):
-        return self._resolution_index   
+    def get_selected_amplicons(self):
+        return self._selected_amplicons
 
     def get_selected_patterns(self):
-        return self._selected_patterns     
+        return self._selected_patterns
 
-    def get_minimum_spanning_set(self, max_loci, max_res, start):
+    def get_minimum_spanning_set(
+            self, max_loci, max_res, start, primer_zone_size):
         first = True
         go = True
+        self._pz_size = primer_zone_size
         msg = "START Generating minimum spanning set {}".format(start)
         self._logger.info(msg)
         print msg
@@ -65,7 +81,13 @@ class MinSet:
                 self._logger.info(
                     "Adding pattern: %s", next_pattern
                 )
-            # TODO: check overlap
+            # if overlapping, remove and move to next pattern
+            if self._overlapping_pattern(next_pattern):
+                self._logger.info(
+                    "Pattern removed due to overlapping amplicons"
+                )
+                self._remove_used_pattern(next_pattern)
+                continue
             self._add_pattern_to_set([next_pattern])
             # check stopping points
             msg = "Starting Next Resolution Level"
@@ -75,6 +97,7 @@ class MinSet:
                 # Check if there was no improvement with the last addition
                 # Remove last addition
                 self._selected_patterns = self._selected_patterns[:-1]
+                self._selected_amplicons = self._selected_amplicons[:-1]
                 if not self._get_next_resolution_level():
                     self._logger.info("Maximum resolution reached")
                     # stop if there is not another resolution level
@@ -108,9 +131,51 @@ class MinSet:
                 # check that we are on last resolution level
                 # and resolution level has been reached
                 go = False
+            if not len(self._current_resolution_level):
+                self._logger.info(
+                    "No more patterns available"
+                )
+                go = False
             self._remove_used_pattern(next_pattern)
         return self._selected_patterns
 
+    def _overlapping_pattern(self, pattern):
+        # Current amplicons
+        start, stop, genomes, ids = self._get_amplicon_positions(
+            self._patterns.get_pattern_dic(
+                self._selected_patterns))
+        # New Amplicons
+        new_start, new_stop, new_genomes, new_ids = self._get_amplicon_positions(
+            self._patterns.get_pattern_dic([pattern]))
+        if not start:  # First amplicon is being added
+            self._selected_amplicons.append(new_ids[0])
+            return False
+        non_overlapping_amplicons = []
+        for (s, e, g, i) in zip(new_start, new_stop, new_genomes, new_ids):
+            # TODO: make less stringent by removing
+            # amplicon's from previously added patterns
+            # if there are alternative amplicons
+            if not np.any([np.any(a) for a in _get_overlap_array(
+                    start, stop, genomes, s, e, g)]):
+                non_overlapping_amplicons.append(i[0])
+        if non_overlapping_amplicons:
+            self._selected_amplicons.append(non_overlapping_amplicons)
+            return False
+        else:
+            return True
+
+    def _get_amplicon_positions(self, pattern_dic):
+        start = []
+        stop = []
+        genomes = []
+        ids = []
+        for k, v in pattern_dic.iteritems():
+            start.append([int(key) - self._pz_size for key in v.keys()])
+            stop.append(
+                [int(value['s']) + self._pz_size for value in v.values()])
+            genomes.append([int(value['g']['id']) for value in v.values()])
+            ids.append(v.keys())
+        return start, stop, genomes, ids
 
     def _add_pattern_to_set(self, pattern_ids, get_progress=True):
         ''' update current resolution with new pattern '''
@@ -124,7 +189,6 @@ class MinSet:
             if get_progress:
                 self._get_progress()
             self._update_patterns()
-
 
     def _get_next_resolution_level(self):
         if len(self._resolution_patterns):
@@ -150,7 +214,7 @@ class MinSet:
             return True
         else:
             return False
-        
+
     def _sort_resolution_by_score(self):
         self._current_resolution_level['Scores'] = self._score_patterns()
         self._current_resolution_level = \
@@ -159,7 +223,7 @@ class MinSet:
 
     def _init_resolution(self):
         return pd.DataFrame(
-            {0:[(0,) for i in xrange(
+            {0: [(0,) for i in xrange(
                 len(self._current_resolution_level.columns))]},
             index=self._current_resolution_level.columns)
 
@@ -169,21 +233,19 @@ class MinSet:
             update_helper_func,
             self._n_threads, 1,
             **{"current_vector":
-            self._current_resolution.values}
+                self._current_resolution.values}
         )
-    
+
     def _ambiguous_update_patterns(self):
         self._update(_ambiguous_update_helper)
-
 
     def _unambiguous_update_patterns(self):
         self._update(_unambiguous_update_helper)
 
-
     def _get_next_pattern(self):
-        return  self._score_patterns().idxmin()
-        #return scores[scores == scores.min()].sample().index[0]
-        
+        return self._score_patterns().idxmin()
+        # return scores[scores == scores.min()].sample().index[0]
+
     def _ambiguous_score(self):
         return self._score(_ambiguous_score_helper)
 
@@ -210,14 +272,6 @@ class MinSet:
             self._current_resolution_score,
             self._max_resolution_score)) * 100
 
-    def get_resolution_groups(self):
-        return np.unique(
-            Counter(
-                chain(
-                    self._current_resolution)).values(),
-                return_counts=True)
-
-
     def _get_progress(self):
         graph = Pyasciigraph()
         data, counts = self.get_resolution_groups()
@@ -229,7 +283,7 @@ class MinSet:
                 zip(labels, counts)):
             line = line.replace("#", "=")
             progress_string += line + "\n"
-        percent_complete = self._resolution_index/100.0
+        percent_complete = self._resolution_index / 100.0
         ascii_percent = int(60 * percent_complete)
         progress_string += "=" * 79 + "\nPercent Complete  "
         progress_string += "|" * ascii_percent
@@ -243,7 +297,7 @@ def _cartesian_product(pattern_vector, current_vector):
     cart_prod = partial(cartesian_product, dtype=int)
     p_update = map(
         cart_prod,
-        [[p,c] for p, c in zip(
+        [[p, c] for p, c in zip(
             pattern_vector, current_vector)])
     return [[tuple(r) for r in rr] for rr in p_update]
 
@@ -255,9 +309,10 @@ def _ambiguous_update_helper(pattern_vector, current_vector):
     a = set([p[0] for p in p_update if len(p) == 1])
     a = [[i] for i in a]
     amb_pattern = partial(
-            get_ambiguous_pattern,
-            feature_categories=a)
+        get_ambiguous_pattern,
+        feature_categories=a)
     return map(amb_pattern, p_update)
+
 
 def _unambiguous_update_helper(pattern_vector, current_vector):
     p_update = _cartesian_product(
@@ -265,13 +320,36 @@ def _unambiguous_update_helper(pattern_vector, current_vector):
     _, pattern = np.unique(p_update, return_inverse=True, axis=0)
     return [(p,) for p in list(pattern)]
 
+
 def _ambiguous_score_helper(pattern):
     n_strains_in_feature_category = Counter(chain(*pattern))
-    return sum([s * s - s for s in 
-        n_strains_in_feature_category.values()])
-    
+    return sum([s * s - s for s in
+                n_strains_in_feature_category.values()])
+
+
 def _unambiguous_score_helper(pattern):
     _, n_strains_in_feature_category = np.unique(
         pattern, return_counts=True)
-    return sum([s * s - s for s in
-        n_strains_in_feature_category])
+    return sum(
+        [s * s - s for s in
+         n_strains_in_feature_category])
+
+
+def _get_overlap_array(
+        current_start, current_stop, current_genome,
+        new_start, new_stop, new_genome):
+    overlap_array = []
+    for start, stop, genome in zip(
+            current_start, current_stop, current_genome):
+        overlap_array.append(
+            _check_for_overlap(
+                start, stop, genome, new_start, new_stop, new_genome))
+    return overlap_array
+
+
+def _check_for_overlap(
+        start_1, stop_1, genome_1, start_2, stop_2, genome_2):
+    return np.logical_and.reduce((
+        np.equal(genome_1, genome_2),
+        np.less_equal(start_1, stop_2),
+        np.less_equal(start_2, stop_1)))

@@ -1,32 +1,31 @@
 import argparse
 import logging
-import time
 import os.path
+import time
+
 import numpy as np
-import glob
-from multiprocessing import Pool
+
+from Haplotype import Haplotype
 from Minimum_Spanning_Set import MinSet
 from Pattern import Patterns
-from Haplotype import Haplotype
-from utils import Project_Directory, History
-from utils import config_logging, path, positive_int, file_type, percent
-from utils import read_list_file
+from utils import (History, Project_Directory, config_logging, file_type, path,
+                   percent, positive_int, read_list_file)
 
 
 def _get_minimum_spanning_set(
-    patterns, reps, max_loci, max_res, n_threads):
+        patterns, reps, max_loci, max_res, n_threads, primer_zone_size):
     minimum_spanning_set_objs = [
         MinSet(
             patterns, n_threads)
-            for i in xrange(reps)]
+        for _ in xrange(reps)]
     mss_size = [len(mss.get_minimum_spanning_set(
-            max_loci, max_res, rep))
+        max_loci, max_res, rep, primer_zone_size))
         for rep, mss in enumerate(minimum_spanning_set_objs)]
     res_scores = [
         mss.get_resolution_score() for mss in minimum_spanning_set_objs]
     return sorted(
         zip(minimum_spanning_set_objs, res_scores, mss_size),
-        key = lambda x: (x[1], x[2]))[0][0]
+        key=lambda x: (x[1], x[2]))[0][0]
 
 
 def _check_inputs(max_loci, required_loci, exclude_loci):
@@ -51,6 +50,7 @@ def _check_inputs(max_loci, required_loci, exclude_loci):
     except ValueError:
         logger.error("", exc_info=True)
         raise
+
 
 def _set_parameters(**kwargs):
     for key, value in [("res", None),
@@ -78,15 +78,22 @@ def pattern_selection(project_directory, **kwargs):
     history = History(
         project_directory.make_new_file(
             "history", "pattern_selection_history"),
-            "Pattern_Selection",
-            project_directory.timestamp,
-            param_dict=args)
+        "Pattern_Selection",
+        project_directory.timestamp,
+        param_dict=args)
+
+    preprocessing_history = History(
+        project_directory.get_parent_subdirectory_file(
+            "history",
+            "preprocessing_history_{}.txt".format(
+                project_directory.get_parent_directory_timestamp())),
+        "Preprocessing",
+        exists=True)
 
     # Get JSON file path
-    json_file = glob.glob(
-        os.path.join(project_directory.get_parent_directory(
-        "patterns"), "patterns*.json"))[0]
-    history.add_path("Pattern JSON", json_file)
+    json_file = preprocessing_history.get_path("PATTERN JSON")
+
+    history.add_path("PATTERN JSON", json_file)
     logger.info("Reading from pattern JSON: %s", json_file)
     # Read in pattern JSON
     patterns = Patterns()
@@ -100,16 +107,15 @@ def pattern_selection(project_directory, **kwargs):
     patterns.set_resolution(args['res'], args['stop_at_res'])
     best_set = _get_minimum_spanning_set(
         patterns, args['reps'], args['max_loci'],
-        args['max_res'], args['n_threads'])
+        args['max_res'], args['n_threads'],
+        int(preprocessing_history.get_parameter("PZ_SIZE")))
 
     haplotype_file = project_directory.make_new_file(
-            "minimum_spanning_set", "haplotype", "csv")
+        "minimum_spanning_set", "haplotype", "csv")
     amplicon_json = project_directory.make_new_file(
-        "minimum_spanning_set", "amplicons", "json"
-    )
+        "minimum_spanning_set", "amplicons", "json")
     summary_file = project_directory.make_new_file(
-        "summary", "summary"
-    )
+        "summary", "summary")
 
     haplotype = Haplotype(patterns, best_set)
 
@@ -269,8 +275,8 @@ if __name__ == "__main__":
         ARGS.project_dir,
         ARGS.project_name,
         ["summary", "logs", "history", "minimum_spanning_set"],
-        ["patterns", "flags"])
-    
+        ["patterns", "flags", "history"])
+
     config_logging(
         os.path.join(
             PROJECT_DIR.get_sub_directory("logs"),
@@ -278,13 +284,13 @@ if __name__ == "__main__":
                 PROJECT_DIR.project_name)), ARGS.log)
 
     LOGGER = logging.getLogger(__name__)
-    
+
     try:
         if ARGS.req_loci_file is not None:
             ARGS.required_loci = read_list_file(ARGS.req_loci_file)
     except IOError:
         LOGGER.error("Cannot open required loci file: %s",
-            ARGS.req_loci_file)
+                     ARGS.req_loci_file)
         raise
 
     try:
@@ -292,7 +298,7 @@ if __name__ == "__main__":
             ARGS.exclude_loci = read_list_file(ARGS.excl_loci_file)
     except IOError:
         LOGGER.error("Cannot open excluded loci file: %s",
-            ARGS.excl_loci_file)
+                     ARGS.excl_loci_file)
         raise
 
     try:
@@ -300,7 +306,7 @@ if __name__ == "__main__":
             ARGS.exclude_strains = read_list_file(ARGS.excl_strains_file)
     except IOError:
         LOGGER.error("Cannot open exclude strains file: %s",
-            ARGS.excl_strains_file)
+                     ARGS.excl_strains_file)
         raise
 
     PARAMS = {"res": ARGS.res,
@@ -312,7 +318,6 @@ if __name__ == "__main__":
               "exclude_loci": ARGS.exclude_loci,
               "required_loci": ARGS.required_loci,
               "exclude_strains": ARGS.exclude_strains
-    }
+              }
 
     pattern_selection(PROJECT_DIR, **PARAMS)
-

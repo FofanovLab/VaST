@@ -1,25 +1,33 @@
-import logging
 import json
-import pandas as pd
-import numpy as np
+import logging
 
 
 class Haplotype:
     def __init__(self, patterns, minimum_spanning_set):
+        self._logger = logging.getLogger(__name__)
         self._minimum_spanning_set = minimum_spanning_set
         self._selected_patterns = \
             self._minimum_spanning_set.get_selected_patterns()
+        self._selected_amplicons = \
+            self._minimum_spanning_set.get_selected_amplicons()
         self._patterns = patterns
         self._pattern_dic = patterns.get_pattern_dic(
             self._selected_patterns)
         self._pattern_df = patterns.get_pattern_df(
             self._selected_patterns)
-        self._logger = logging.getLogger(__name__)
+        self._pattern_dic_with_selected_amps = self._get_selected_amplicons()
 
 
-# TODO: Add summary
 # TODO: Add upstream and downstream flags to amplicon dic
 
+    def _get_selected_amplicons(self):
+        new_dic = {}
+        for pattern, sel_amplicons in zip(
+                self._selected_patterns, self._selected_amplicons):
+            all_amplicons = self._pattern_dic[pattern]
+            new_dic[pattern] = {
+                k: v for k, v in all_amplicons.iteritems() if k in sel_amplicons}
+        return new_dic
 
     def write_haplotype(self, file_name):
         self._logger.info("Writing haplotype to %s", file_name)
@@ -53,8 +61,3 @@ class Haplotype:
                 for i in group_size]
             for label, count in zip(labels, counts):
                 out.write("{0} {1}\n".format(count, label))
-
-
-
-
-
