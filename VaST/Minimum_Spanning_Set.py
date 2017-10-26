@@ -38,6 +38,7 @@ class MinSet:
         return self._resolution_index
 
     def get_resolution_groups(self):
+        # Modify to work with ambiguous bases
         return np.unique(
             Counter(
                 chain(
@@ -151,13 +152,13 @@ class MinSet:
             self._selected_amplicons.append(new_ids[0])
             return False
         non_overlapping_amplicons = []
-        for (s, e, g, i) in zip(new_start, new_stop, new_genomes, new_ids):
+        for (s, e, g, i) in zip(new_start[0], new_stop[0], new_genomes[0], new_ids[0]):
             # TODO: make less stringent by removing
             # amplicon's from previously added patterns
             # if there are alternative amplicons
             if not np.any([np.any(a) for a in _get_overlap_array(
                     start, stop, genomes, s, e, g)]):
-                non_overlapping_amplicons.append(i[0])
+                non_overlapping_amplicons.append(i)
         if non_overlapping_amplicons:
             self._selected_amplicons.append(non_overlapping_amplicons)
             return False
@@ -284,10 +285,11 @@ class MinSet:
             line = line.replace("#", "=")
             progress_string += line + "\n"
         percent_complete = self._resolution_index / 100.0
-        ascii_percent = int(60 * percent_complete)
-        progress_string += "=" * 79 + "\nPercent Complete  "
+        ascii_percent = int(55 * percent_complete)
+        progress_string += "=" * 79 + \
+            "\nPercent Complete {0:0.1f}% ".format(percent_complete*100)
         progress_string += "|" * ascii_percent
-        progress_string += "-" * (60 - ascii_percent)
+        progress_string += "-" * (55 - ascii_percent)
         progress_string += "|\n" + "=" * 79 + "\n\n"
         print progress_string.encode('utf-8')
         self._logger.info(progress_string)

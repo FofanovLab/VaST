@@ -289,7 +289,7 @@ def get_locus_groups(row, alphabet):
     return [tuple(p) for p in pattern]
 
 
-def cartesian_product(arr, out=None, dtype="S5"):
+def cartesian_product(arr, out=None, dtype="S5"):    
     """
     Generate a cartesian product of input arrays.
         Parameters
@@ -321,7 +321,6 @@ def cartesian_product(arr, out=None, dtype="S5"):
     arrays = [np.asarray(x) for x in arr]
 
     n = np.prod([x.size for x in arrays])
-
     if out is None:
         out = np.zeros([n, len(arrays)], dtype=dtype)
 

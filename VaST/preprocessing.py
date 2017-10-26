@@ -142,7 +142,6 @@ def _remove_strains(exclude_strains, strains):
 
 def _set_parameters(**kwargs):
     for key, value in [("strict", False),
-                       ("skip_filter", False),
                        ("sep", "\t"),
                        ("window", 50),
                        ("strain_cutoff", 1),
@@ -153,10 +152,6 @@ def _set_parameters(**kwargs):
                        ("n_threads", 1)]:
         if key not in kwargs:
             kwargs[key] = value
-        # Important for when this parameter is used
-        # for checking overlap in pattern_selection
-        if kwargs['skip_filter']:
-            kwargs['pz_size'] = 0
     return kwargs
 
 
@@ -229,11 +224,11 @@ def _get_flags_from_full_matrix(
     flags = np.less(flags, strain_cutoff)
     # Split into dictionary by genome
     # TODO: Add check that no sites are missing
-    flags = pd.DataFrame({"Genome": full_matrix_sites[:, 0],
-                          "Site": full_matrix_sites[:, 1],
-                          "Flag": flags})
+    flags = pd.DataFrame({"Site": full_matrix_sites[:, 1],
+                          "Genome": full_matrix_sites[:, 0],
+                          "Flag": flags}, columns=['Site', "Genome", "Flag"])
     logger.info("Writing flags to %s", outfile)
-    flags[['Site', 'Genome', 'Flag']].to_csv(outfile, index=False)
+    flags.to_csv(outfile, index=False)
 
     flag_dic = {}
     for name, group in flags.groupby('Genome'):
@@ -275,7 +270,7 @@ def _remove_ambiguous_sites(var_matrix, sites):
 
 
 def preprocessing(project_directory, var_matrix_path,
-                  full_matrix_path, **kwargs):
+                  full_matrix_path, flag_file_path, **kwargs):
     """
     Groups variant sites into amplicon windows and filters
     out any amplicons that do not have well conserved
@@ -294,8 +289,8 @@ def preprocessing(project_directory, var_matrix_path,
         param_dict=args)
 
     # Get strains and sites from matrix
-    strains = _get_strains_from_file(var_matrix_path)
-    sites = _get_sites_from_file(var_matrix_path)
+    strains = _get_strains_from_file(var_matrix_path, args["sep"])
+    sites = _get_sites_from_file(var_matrix_path, args["sep"])
 
     # Remove excluded strains
     if args["exclude_strains"] is not None:
@@ -314,27 +309,35 @@ def preprocessing(project_directory, var_matrix_path,
                         n_sites_before - len(sites)))
 
     history.add_path("Variant Site Matrix File", var_matrix_path)
-    history.add_path("Full Genome Matrix File", full_matrix_path)
     history.add_parameter("Number of Sites", len(sites))
     history.add_parameter("Number of Strains", len(strains))
 
     _check_inputs(args["pz_size"],
-                  args["pz_filter_length"],
-                  args["strain_cutoff"],
-                  len(strains))
-    # TODO: save flag dict as JSON that can be provided as an option
-    # instead of the full_matrix
-    flag_file = project_directory.make_new_file(
-        "flags", "primer_zone_flags", "csv")
-    history.add_path("Primer Zone Flags", flag_file)
+                args["pz_filter_length"],
+                args["strain_cutoff"],
+                len(strains))
 
-    flag_dic = {}
-    if not args['skip_filter']:
+    if full_matrix_path is not None:
+        history.add_path("Full Genome Matrix File", full_matrix_path)
+
+        flag_file = project_directory.make_new_file(
+            "flags", "primer_zone_flags", "csv")
+        history.add_path("Primer Zone Flags", flag_file)
+
         flag_dic = _get_flags_from_full_matrix(
             full_matrix_path, strains,
             args["strain_cutoff"], args["sep"],
             args["n_threads"],
             flag_file)
+
+    if flag_file_path is not None:
+        history.add_path("Primer Zone Flags", flag_file_path)
+        history.add_path("Full Genome Matrix File", "NA")
+        flag_df = pd.read_csv(flag_file_path)
+        flag_dic = {}
+        for name, group in flag_df.groupby('Genome'):
+            flag_dic[name] = group
+        
 
     amplicon_filter = AmpliconFilter(
         sites, var_matrix, flag_dic,
@@ -343,17 +346,8 @@ def preprocessing(project_directory, var_matrix_path,
         args['pz_filter_percent'],
         args['strict'])
 
-    if not args['skip_filter']:
-        patterns = amplicon_filter.filter_amplicons_get_patterns()
+    patterns = amplicon_filter.filter_amplicons_get_patterns()
 
-    else:
-        sites = pd.DataFrame(
-            sites,
-            columns=["Genome", "Start", "Stop"])
-        for site in xrange(len(sites)):
-            amplicon_filter.update_pattern(
-                sites, site)
-        patterns = amplicon_filter.get_patterns()
     # Write patterns to a json file
     pattern_json_file = project_directory.make_new_file(
         "patterns", "patterns", "json")
@@ -396,10 +390,22 @@ if __name__ == "__main__":
         help="Path to variant site matrices"
     )
 
-    PARSER.add_argument(
-        "full_matrix_path", metavar="FULL_MATRIX_PATH", type=file_type,
+    FILTER_FILE = PARSER.add_argument_group(
+        title="Filter file type",
+        description="Provide full genome matrix or an already calculated "
+                    "flag file"
+    )
+
+    FILTER = FILTER_FILE.add_mutually_exclusive_group(required=True)
+    FILTER.add_argument(
+        "--full_matrix_path", type=file_type,
         help="Path to full genome matrix (includes calls at every site "
              "in the genome)"
+    )
+
+    FILTER.add_argument(
+        "--flag_file_path", type=file_type,
+        help="Path to precomputed flag file"
     )
 
     PARSER.add_argument(
@@ -419,11 +425,6 @@ if __name__ == "__main__":
     PARSER.add_argument(
         '-s', "--strict", action='store_true', default=False,
         help="Strict mode ignores sites with missing or ambiguous data"
-    )
-
-    PARSER.add_argument(
-        "--skip_filter", action='store_true', default=False,
-        help="Skip amplicon filter and just run pattern discovery"
     )
 
     PARSER.add_argument(
@@ -489,7 +490,6 @@ if __name__ == "__main__":
            'tab': '\t'}[ARGS.sep]
 
     PARAMS = {"strict": ARGS.strict,
-              "skip_filter": ARGS.skip_filter,
               "window": ARGS.window,
               "strain_cutoff": ARGS.strain_cutoff,
               "pz_size": ARGS.pz_size,
@@ -501,4 +501,4 @@ if __name__ == "__main__":
 
     preprocessing(
         PROJECT_DIR, ARGS.var_matrix_path,
-        ARGS.full_matrix_path, **PARAMS)
+        ARGS.full_matrix_path, ARGS.flag_file_path, **PARAMS)
