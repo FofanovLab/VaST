@@ -18,21 +18,21 @@ source activate vast_env
 The preprocessing module includes the Amplicon Filter and the Pattern Discovery steps and outputs a JSON file which can be passed to the Pattern Selection Module. The Amplicon Filter treates each variant site as a potential amplicon, combining adjacent sites as necessary and filters out any amplicons that may be difficult to amplify in all strains. During Pattern Discovery, amplicons are divided into groups based on their resolution patterns which describes how the strains vary at the amplicon.
 
 ### Inputs
-VaST must be provided a variant site matrix (`VAR_MATRIX_PATH`)where each row represents a genomic site that varies across the columns of strains; the values in the marix characterize the state of each strain at the variable sites. Many different types of genomic variation can be included in this matrix (SNPs, indels, VNTRs) provided that the variable region is short enough to be captured in an AmpSeq reaction. The first column of the variant site matrix should contain a genome identifier, a start position, and an end position separated by two colons, (e.g genome123::115::115). The start and end position should be the same for SNPs and for VNTRs, the stopping position should be based on the longest repeat.
+VaST must be provided a variant site matrix (`VAR_MATRIX_PATH`) where each row represents a genomic site that varies across the columns of strains; the values in the marix characterize the state of each strain at the variable sites. Many different types of genomic variation can be included in this matrix (SNPs, indels, VNTRs) provided that the variable region is short enough to be captured in an AmpSeq reaction. The first column of the variant site matrix should contain a genome identifier, a start position, and an end position separated by two colons, (e.g genome123::115::115). The start and end position should be the same for SNPs and for VNTRs, the stopping position should be based on the longest repeat.
 
-To run the Amplicon Filter Module, VaST requires information about the regions upstream and downstream of each of the variable sites. Therefore, a full genome matrix (`FULL_MATRIX_PATH`) must be provided which should include a call for each position in the genome for all of the strains. This matrix can be generated through the alignment of genome assemblies to a reference genome (same reference that was used to identify variant sites) or from VCF files that contain calls for each position in the genome. This step can be skipped using `--skip_filter`. The first column of the full genome matrix should have a genome ID and the position separated by two colons, (e.g genome123::115). See `./example` for examples.
+To run the Amplicon Filter Module, VaST requires information about the regions upstream and downstream of each of the variable sites. Therefore, either a full genome matrix (`FULL_MATRIX_PATH`) must be provided which should include a call for each position in the genome for all of the strains or a previously generated flag file (`FLAG_FILE_PATH`) must be provided. The full genome matrix can be generated through the alignment of genome assemblies to a reference genome (same reference that was used to identify variant sites) or from VCF files that contain calls for each position in the genome. The first column of the full genome matrix should have a genome ID and the position separated by two colons, (e.g genome123::115). See `./example` for examples.
 
 
 ### Usage
 ```
 $ python ./VaST/preprocessing.py --help
-usage: AMPLICON_FILTER [-h] [-d {tab,comma,space}] [-w WINDOW] [-s]
-                       [--skip_filter] [-c STRAIN_CUTOFF] [-z PZ_SIZE]
-                       [-l PZ_FILTER_LENGTH] [-p PZ_FILTER_PERCENT]
-                       [--log {DEBUG,INFO,WARNING}] [-x EXCLUDE_STRAINS]
-                       [-t THREADS]
+usage: AMPLICON_FILTER [-h]
+                       (--full_matrix_path FULL_MATRIX_PATH | --flag_file_path FLAG_FILE_PATH)
+                       [-d {tab,comma,space}] [-w WINDOW] [-s]
+                       [-c STRAIN_CUTOFF] [-z PZ_SIZE] [-l PZ_FILTER_LENGTH]
+                       [-p PZ_FILTER_PERCENT] [--log {DEBUG,INFO,WARNING}]
+                       [-x EXCLUDE_STRAINS] [-t THREADS]
                        PROJECT_NAME PROJECT_DIR VAR_MATRIX_PATH
-                       FULL_MATRIX_PATH
 
 Parses a variant site matrix to find candidate amplicons
 
@@ -40,8 +40,6 @@ positional arguments:
   PROJECT_NAME          Project name and output file prefix
   PROJECT_DIR           Project directory
   VAR_MATRIX_PATH       Path to variant site matrices
-  FULL_MATRIX_PATH      Path to full genome matrix (includes calls at every
-                        site in the genome)
 
 optional arguments:
   -h, --help            show this help message and exit
@@ -54,8 +52,6 @@ optional arguments:
                         upstream and downstream primer zone) (default: 50)
   -s, --strict          Strict mode ignores sites with missing or ambiguous
                         data (default: False)
-  --skip_filter         Skip amplicon filter and just run pattern discovery
-                        (default: False)
   -c STRAIN_CUTOFF, --strain_cutoff STRAIN_CUTOFF
                         The number of strains at a primer zone site that can
                         have a non-conserved call before the site is flagged
@@ -78,6 +74,15 @@ optional arguments:
                         from analysis in a single column (default: None)
   -t THREADS, --threads THREADS
                         Number of threads for multiprocessing (default: 1)
+
+Filter file type:
+  Provide full genome matrix or an already calculated flag file
+
+  --full_matrix_path FULL_MATRIX_PATH
+                        Path to full genome matrix (includes calls at every
+                        site in the genome) (default: None)
+  --flag_file_path FLAG_FILE_PATH
+                        Path to precomputed flag file (default: None)
 ```
 
 ### Parameters
