@@ -98,11 +98,11 @@ def pattern_selection(project_directory, **kwargs):
     # Read in pattern JSON
     patterns = Patterns()
     patterns.load_patterns(json_file)
-    if args['exclude_loci']:
+    if len(args['exclude_loci']):
         patterns.remove_sites(args['exclude_loci'])
-    if args['required_loci']:
+    if len(args['required_loci']):
         patterns.add_required_sites(args['required_loci'])
-    if args['exclude_strains']:
+    if len(args['exclude_strains']):
         patterns.remove_strains(args['exclude_strains'])
     patterns.set_resolution(args['res'], args['stop_at_res'])
     best_set = _get_minimum_spanning_set(

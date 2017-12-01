@@ -276,12 +276,13 @@ class MinSet:
     def _get_progress(self):
         graph = Pyasciigraph()
         data, counts = self.get_resolution_groups()
+        values = [d * c for d, c in zip(data, counts)]
         labels = ["Group size {}".format(i)
                   if i > 1 else "Fully Resolved" for i in data]
         progress_string = ""
         for line in graph.graph(
                 "Pattern # {}".format(len(self._selected_patterns)),
-                zip(labels, counts)):
+                zip(labels, values)):
             line = line.replace("#", "=")
             progress_string += line + "\n"
         percent_complete = self._resolution_index / 100.0
