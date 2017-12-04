@@ -246,8 +246,8 @@ def config_logging(log_file_name, level):
 
 def read_list_file(file_name, sep="\n", dtype=str):
     with open(file_name, 'rU') as handle:
-        return np.genfromtxt(
-            handle, delimiter=sep, dtype=dtype)
+        return list(np.atleast_1d(np.genfromtxt(
+            handle, delimiter=sep, dtype=dtype)))
 
 
 def parallel_apply(df, func, threads, axis, **kwargs):
