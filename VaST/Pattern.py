@@ -36,7 +36,6 @@ class Patterns:
         return copy.deepcopy(self._resolution_levels)
 
     def to_json(self, file_name, strains):
-        print self._genomes
         d = {"strains": strains,
              "genomes": {v['id']: v for v in self._genomes.values()},
              "patterns": self._patterns}
