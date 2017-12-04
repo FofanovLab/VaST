@@ -31,8 +31,9 @@ def _get_minimum_spanning_set(
 def _check_inputs(max_loci, required_loci, exclude_loci):
     logger = logging.getLogger(__name__)
     # If there are required loci, check that max_loci is larger
+    print len(required_loci), type(required_loci)
     try:
-        if max_loci <= len(required_loci):
+        if max_loci < len(required_loci):
             raise ValueError("Maximum number of loci is less than or equal "
                              "to the number of required loci. "
                              "No more loci can be added")
