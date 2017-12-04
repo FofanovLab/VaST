@@ -65,10 +65,12 @@ class MinSet:
         while go:
             previous_resolution_score = self._current_resolution_score
             # score and pick minimum
+            required_flag = False
             if self._required_patterns:
                 next_pattern = self._required_patterns.pop(0)
                 self._logger.info(
                     "Adding required pattern: %s", next_pattern)
+                required_flag = True
             elif first:
                 next_pattern = self._current_resolution_level.index[
                     start % len(self._current_resolution_level.index)]
@@ -83,7 +85,7 @@ class MinSet:
                     "Adding pattern: %s", next_pattern
                 )
             # if overlapping, remove and move to next pattern
-            if self._overlapping_pattern(next_pattern):
+            if self._overlapping_pattern(next_pattern) and not required_flag:
                 self._logger.info(
                     "Pattern removed due to overlapping amplicons"
                 )
@@ -92,51 +94,52 @@ class MinSet:
             self._add_pattern_to_set([next_pattern])
             # check stopping points
             msg = "Starting Next Resolution Level"
-            if previous_resolution_score == self._current_resolution_score:
-                self._logger.info(
-                    "No improvement with last pattern, removing pattern")
-                # Check if there was no improvement with the last addition
-                # Remove last addition
-                self._selected_patterns = self._selected_patterns[:-1]
-                self._selected_amplicons = self._selected_amplicons[:-1]
-                if not self._get_next_resolution_level():
-                    self._logger.info("Maximum resolution reached")
-                    # stop if there is not another resolution level
-                    go = False
-                else:
-                    print msg
-                    self._logger.info(msg)
-                continue
-            if self._current_resolution_score == 0:
-                self._logger.info(
-                    "Maximum resolution achieved at current "
-                    "resolution objective")
-                # full resolution has been achieved
-                if not self._get_next_resolution_level():
+            if not required_flag:
+                if previous_resolution_score == self._current_resolution_score:
                     self._logger.info(
-                        "Maximum Resolution achieved at final "
+                        "No improvement with last pattern, removing pattern")
+                    # Check if there was no improvement with the last addition
+                    # Remove last addition
+                    self._selected_patterns = self._selected_patterns[:-1]
+                    self._selected_amplicons = self._selected_amplicons[:-1]
+                    if not self._get_next_resolution_level():
+                        self._logger.info("Maximum resolution reached")
+                        # stop if there is not another resolution level
+                        go = False
+                    else:
+                        print msg
+                        self._logger.info(msg)
+                    continue
+                if self._current_resolution_score == 0:
+                    self._logger.info(
+                        "Maximum resolution achieved at current "
                         "resolution objective")
-                    # stop if there is not another resolution level
+                    # full resolution has been achieved
+                    if not self._get_next_resolution_level():
+                        self._logger.info(
+                            "Maximum Resolution achieved at final "
+                            "resolution objective")
+                        # stop if there is not another resolution level
+                        go = False
+                    else:
+                        print msg
+                        self._logger.info(msg)
+                if len(self._selected_patterns) >= max_loci:
+                    self._logger.info("Maximum loci reached")
+                    # stop if max loci has been reached
                     go = False
-                else:
-                    print msg
-                    self._logger.info(msg)
-            if len(self._selected_patterns) == max_loci:
-                self._logger.info("Maximum loci reached")
-                # stop if max loci has been reached
-                go = False
-            if not len(self._resolution_patterns) and \
-                    self._resolution_index >= max_res:
-                self._logger.info(
-                    "Maximum resolution percent reached")
-                # check that we are on last resolution level
-                # and resolution level has been reached
-                go = False
-            if not len(self._current_resolution_level):
-                self._logger.info(
-                    "No more patterns available"
-                )
-                go = False
+                if not len(self._resolution_patterns) and \
+                        self._resolution_index >= max_res:
+                    self._logger.info(
+                        "Maximum resolution percent reached")
+                    # check that we are on last resolution level
+                    # and resolution level has been reached
+                    go = False
+                if not len(self._current_resolution_level):
+                    self._logger.info(
+                        "No more patterns available"
+                    )
+                    go = False
             self._remove_used_pattern(next_pattern)
         return self._selected_patterns
 
