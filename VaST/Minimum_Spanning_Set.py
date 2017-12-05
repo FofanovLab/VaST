@@ -280,8 +280,8 @@ class MinSet:
         graph = Pyasciigraph()
         data, counts = self.get_resolution_groups()
         values = [d * c for d, c in zip(data, counts)]
-        labels = ["Group size {}".format(i)
-                  if i > 1 else "Fully Resolved" for i in data]
+        labels = ["{0} Group size {1}".format(c, i)
+                  if i > 1 else "Fully Resolved" for i, c in zip(data, counts)]
         progress_string = ""
         for line in graph.graph(
                 "Pattern # {}".format(len(self._selected_patterns)),
