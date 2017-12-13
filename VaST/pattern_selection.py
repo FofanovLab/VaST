@@ -31,7 +31,6 @@ def _get_minimum_spanning_set(
 def _check_inputs(max_loci, required_loci, exclude_loci):
     logger = logging.getLogger(__name__)
     # If there are required loci, check that max_loci is larger
-    print len(required_loci), type(required_loci)
     try:
         if max_loci < len(required_loci):
             raise ValueError("Maximum number of loci is less than or equal "
@@ -91,8 +90,13 @@ def pattern_selection(project_directory, **kwargs):
         "Preprocessing",
         exists=True)
 
-    # Get JSON file path
+    # Get JSON file path from preprocessing step
     json_file = preprocessing_history.get_path("PATTERN JSON")
+
+    # Get flag file path from preprocessing step
+    flag_file = preprocessing_history.get_path("PRIMER ZONE FLAGS")
+    primer_zone_size = preprocessing_history.get_parameter("PZ_SIZE")
+
 
     history.add_path("PATTERN JSON", json_file)
     logger.info("Reading from pattern JSON: %s", json_file)
@@ -118,7 +122,7 @@ def pattern_selection(project_directory, **kwargs):
     summary_file = project_directory.make_new_file(
         "summary", "summary")
 
-    haplotype = Haplotype(patterns, best_set)
+    haplotype = Haplotype(patterns, best_set, flag_file, primer_zone_size)
 
     haplotype.write_haplotype(haplotype_file)
     history.add_path("Haplotype File", haplotype_file)
