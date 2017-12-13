@@ -63,11 +63,8 @@ class Patterns:
             "Including the following sites in the solution: %s",
             ", ".join(required_sites))
         for site in required_sites:
-            print "Site", required_sites
-            print self._amp_2_pattern.keys()
             try:
                 pattern_id = self._amp_2_pattern[site]['pattern_id']
-                print "pattern id", pattern_id
                 self._required_patterns.append(pattern_id)
             except KeyError:
                 self._logger.warning("Required site not found: %s",
