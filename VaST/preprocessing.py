@@ -10,7 +10,7 @@ import pandas as pd
 from Amplicon_Filter import AmpliconFilter
 from utils import (AMBIGUOUS, BASES, History, Project_Directory,
                    config_logging, file_type, path, percent, positive_int,
-                   read_list_file)
+                   read_list_file, parse_flag_file)
 
 
 def _get_strains_from_file(matrix, sep="\t"):
@@ -308,7 +308,7 @@ def preprocessing(project_directory, var_matrix_path,
                     "or missing data were removed".format(
                         n_sites_before - len(sites)))
 
-    history.add_path("Variant Site Matrix File", var_matrix_path)
+    history.add_path("VARIANT SITE MATRIX FILE", var_matrix_path)
     history.add_parameter("Number of Sites", len(sites))
     history.add_parameter("Number of Strains", len(strains))
 
@@ -318,11 +318,11 @@ def preprocessing(project_directory, var_matrix_path,
                 len(strains))
 
     if full_matrix_path is not None:
-        history.add_path("Full Genome Matrix File", full_matrix_path)
+        history.add_path("FULL GENOME MATRIX FILE", full_matrix_path)
 
         flag_file = project_directory.make_new_file(
             "flags", "primer_zone_flags", "csv")
-        history.add_path("Primer Zone Flags", flag_file)
+        history.add_path("PRIMER ZONE FLAGS", flag_file)
 
         flag_dic = _get_flags_from_full_matrix(
             full_matrix_path, strains,
@@ -331,13 +331,10 @@ def preprocessing(project_directory, var_matrix_path,
             flag_file)
 
     if flag_file_path is not None:
-        history.add_path("Primer Zone Flags", flag_file_path)
-        history.add_path("Full Genome Matrix File", "NA")
-        flag_df = pd.read_csv(flag_file_path)
-        flag_dic = {}
-        for name, group in flag_df.groupby('Genome'):
-            flag_dic[name] = group
-        
+        history.add_path("PRIMER ZONE FLAGS", flag_file_path)
+        history.add_path("FULL GENOME MATRIX FILE", "NA")
+        flag_dic = parse_flag_file(flag_file_path)
+
 
     amplicon_filter = AmpliconFilter(
         sites, var_matrix, flag_dic,
