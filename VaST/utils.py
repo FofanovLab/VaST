@@ -345,3 +345,13 @@ def get_ambiguous_pattern(feature, feature_categories):
         feature_categories.append(feature)
         return (len(feature_categories) - 1, )
     return tuple(set(pattern))
+
+def parse_flag_file(flag_file_path):
+    ''' Parses csv flag file with headers: 
+    Site, Genome, Flag. Returns dictionary
+    with with data grouped by genome id '''
+    flag_df = pd.read_csv(flag_file_path)
+    flag_dic = {}
+    for name, group in flag_df.groupby("Genome"):
+        flag_dic[name] = group
+    return flag_dic
