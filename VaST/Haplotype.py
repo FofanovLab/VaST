@@ -1,9 +1,13 @@
 import json
 import logging
+import numpy as np
+import itertools as it
+from utils import parse_flag_file
 
 
 class Haplotype:
-    def __init__(self, patterns, minimum_spanning_set):
+    def __init__(self, patterns, minimum_spanning_set,
+                 flag_file_path, primer_zone_size):
         self._logger = logging.getLogger(__name__)
         self._minimum_spanning_set = minimum_spanning_set
         self._selected_patterns = \
@@ -15,10 +19,48 @@ class Haplotype:
             self._selected_patterns)
         self._pattern_df = patterns.get_pattern_df(
             self._selected_patterns)
-        self._pattern_dic_with_selected_amps = self._get_selected_amplicons()
+        # Selected amps is the group of amplicons for a pattern that
+        # were not removed due to overlap with other amplicons
+        # in the minimum spanning set.
+        self._pattern_dic = self._get_selected_amplicons()
+        self._pattern_dic = self._get_flags(
+            flag_file_path, int(primer_zone_size))
 
+    def _get_flags(self, flag_file_path, primer_zone_size):
+        flag_dic = parse_flag_file(flag_file_path)
+        for pattern, amplicons in self._pattern_dic.iteritems():
+            for amplicon, chars in amplicons.iteritems():
+                genome = chars['g']['name']
+                genome_size = int(chars['g']['length'])
+                start = int(amplicon)
+                stop = int(chars['s'])
+                up_start = start - primer_zone_size - 1 if start - primer_zone_size > 1 else 0
+                up_stop = start - 1
+                down_start = stop
+                down_stop = (stop + primer_zone_size if 
+                    stop + primer_zone_size < genome_size
+                    else genome_size - 1)
+                upstream_flags = np.array(
+                    flag_dic[genome].iloc[up_start: up_stop].Flag, dtype=bool)
+                downstream_flags = np.array(
+                    flag_dic[genome].iloc[down_start: down_stop].Flag, dtype=bool)
+                upstream_count = np.array([sum(1 for _ in g[1])
+                    for g in it.groupby(
+                        upstream_flags) if np.all(g[0])], dtype=int)
+                downstream_count = np.array([sum(1 for _ in g[1])
+                    for g in it.groupby(
+                        downstream_flags) if np.all(g[0])], dtype=int)
+                percent_ok = (
+                    np.sum(upstream_count) + np.sum(downstream_count))/float(
+                        len(upstream_flags) + len(downstream_flags)) * 100
+                med_size = np.median(np.append(upstream_count, downstream_count))
+                self._pattern_dic[pattern][amplicon]['primer_zone'] = {
+                    'upstream': upstream_flags,
+                    'downstream': downstream_flags,
+                    'percent_ok': percent_ok,
+                    'med_size': med_size
+                }
 
-# TODO: Add upstream and downstream flags to amplicon dic
 
     def _get_selected_amplicons(self):
         new_dic = {}
@@ -39,6 +81,13 @@ class Haplotype:
             file_name)
         with open(file_name, 'w') as out:
             out.write(json.dumps(self._pattern_dic))
+
+    def write_suggested_amplicons(self, file_name):
+        self._logger.info(
+            "Writing suggested amplicons to %s", file_name
+        )
+        with open(file_name, 'w') as out:
+            out.write()
 
     def write_summary(self, file_name):
         self._logger.info(
