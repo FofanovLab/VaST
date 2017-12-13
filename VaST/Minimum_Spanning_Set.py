@@ -85,16 +85,21 @@ class MinSet:
                     "Adding pattern: %s", next_pattern
                 )
             # if overlapping, remove and move to next pattern
-            if self._overlapping_pattern(next_pattern) and not required_flag:
-                self._logger.info(
-                    "Pattern removed due to overlapping amplicons"
-                )
-                self._remove_used_pattern(next_pattern)
-                continue
+            if self._overlapping_pattern(next_pattern):
+                if not required_flag:
+                    self._logger.info(
+                        "Pattern removed due to overlapping amplicons"
+                    )
+                    self._remove_used_pattern(next_pattern)
+                    continue
+                else:
+                    self._logger.warning(
+                        "Required pattern has overlapping amplicons, "
+                        "adding anyway")
             self._add_pattern_to_set([next_pattern])
             # check stopping points
             msg = "Starting Next Resolution Level"
-            if not required_flag:
+            if not required_flag: # allow all required patterns to be added
                 if previous_resolution_score == self._current_resolution_score:
                     self._logger.info(
                         "No improvement with last pattern, removing pattern")
