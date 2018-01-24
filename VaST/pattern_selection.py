@@ -8,7 +8,7 @@ import numpy as np
 from Haplotype import Haplotype
 from Minimum_Spanning_Set import MinSet
 from Pattern import Patterns
-from utils import (History, Project_Directory, config_logging, file_type, path,
+from utils import (History, Project_Directory, config_logging, file_type, path_type,
                    percent, positive_int, read_list_file)
 
 
@@ -154,7 +154,7 @@ if __name__ == "__main__":
     )
 
     PARSER.add_argument(
-        "project_dir", metavar='PROJECT_DIR', type=path,
+        "project_dir", metavar='PROJECT_DIR', type=path_type,
         help="Path to preprocessing directory"
     )
 
