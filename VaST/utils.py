@@ -180,7 +180,7 @@ def percent(input_val):
     return input_val
 
 
-def path(input_path):
+def path_type(input_path):
     if not os.path.isdir(input_path):
         raise argparse.ArgumentTypeError("Not a valid path")
     return os.path.abspath(input_path)
@@ -346,12 +346,13 @@ def get_ambiguous_pattern(feature, feature_categories):
         return (len(feature_categories) - 1, )
     return tuple(set(pattern))
 
-def parse_flag_file(flag_file_path):
+def parse_flag_file(flag_file_path, sep=","):
     ''' Parses csv flag file with headers: 
-    Site, Genome, Flag. Returns dictionary
-    with with data grouped by genome id '''
-    flag_df = pd.read_csv(flag_file_path)
-    flag_dic = {}
-    for name, group in flag_df.groupby("Genome"):
-        flag_dic[name] = group
-    return flag_dic
+    Site, Genome, Flag. '''
+    flag_df = pd.read_csv(flag_file_path, sep=sep)
+    # Check headers are correct
+    headers = [h.lower() for h in flag_df.columns.values]
+    if not np.all(np.in1d(["site", "genome", "flag"], headers)):
+        raise IOError("Flag file is missing expected headers")
+    return flag_df
+
