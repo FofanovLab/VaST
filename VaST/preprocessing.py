@@ -9,7 +9,7 @@ import pandas as pd
 
 from Amplicon_Filter import AmpliconFilter
 from utils import (AMBIGUOUS, BASES, History, Project_Directory,
-                   config_logging, file_type, path, percent, positive_int,
+                   config_logging, file_type, path_type, percent, positive_int,
                    read_list_file, parse_flag_file)
 
 
@@ -173,14 +173,9 @@ def _get_flags_helper(chunk):
         _non_conserved_strain_count, axis=1)
 
 
-def _get_flags_from_full_matrix(
-        full_matrix_path, strains, strain_cutoff,
-        sep, n_threads, outfile):
-    ''' 
-    Get dictionary of flagged primer zone regions 
-    Returns a dictionary key: Genome ID 
-    value: dataframe of flags for each site
-    '''
+def _get_nonconserved_counts(
+    full_matrix_path, strains,
+    sep, n_threads, outfile):
     logger = logging.getLogger(__name__)
     logger.info("BEGIN parsing full genome matrix")
     full_matrix_strains = _get_strains_from_file(
@@ -208,31 +203,35 @@ def _get_flags_from_full_matrix(
 
     pool = Pool(n_threads)
     flags = pd.concat(pool.map(_get_flags_helper, full_matrix))
-
-    # flags = np.array([])
-    # for c, chunk in enumerate(full_matrix):
-    #     logger.debug("On chunk number: %s", c)
-    #     chunk = chunk.apply(
-    #     lambda x: x.str.upper(), axis=1)
-    #     flags = np.append(
-    #         flags, np.array(
-    #             chunk.apply(
-    #                 _non_conserved_strain_count, axis=1),
-    #                 dtype=int))
-
-    # Adjust for strain cutoff
-    flags = np.less(flags, strain_cutoff)
-    # Split into dictionary by genome
-    # TODO: Add check that no sites are missing
     flags = pd.DataFrame({"Site": full_matrix_sites[:, 1],
-                          "Genome": full_matrix_sites[:, 0],
-                          "Flag": flags}, columns=['Site', "Genome", "Flag"])
+                        "Genome": full_matrix_sites[:, 0],
+                        "Flag": flags}, columns=['Site', "Genome", "Flag"])
     logger.info("Writing flags to %s", outfile)
     flags.to_csv(outfile, index=False)
+    logger.info("DONE parsing full genome matrix")
+    return flags
 
+
+
+def _get_flags_from_counts(flag_count_df, strain_cutoff):
+    ''' 
+    Get dictionary of flagged primer zone regions 
+    Returns a dictionary key: Genome ID 
+    value: dataframe of flags for each site
+    '''
+    logger = logging.getLogger(__name__)
+    logger.info("BEGIN parsing flags")
+   
+    # Split into dictionary by genome
+    # TODO: Add check that no sites are missing
+    
+    # Adjust for strain cutoff
+    flag_count_df['Flag'] = np.less(
+        flag_count_df.Flag, strain_cutoff)
     flag_dic = {}
-    for name, group in flags.groupby('Genome'):
+    for name, group in flag_count_df.groupby('Genome'):
         flag_dic[name] = group
+    logger.info("DONE parsing flags")
     return flag_dic
 
 
@@ -323,17 +322,19 @@ def preprocessing(project_directory, var_matrix_path,
         flag_file = project_directory.make_new_file(
             "flags", "primer_zone_flags", "csv")
         history.add_path("PRIMER ZONE FLAGS", flag_file)
-
-        flag_dic = _get_flags_from_full_matrix(
+        flag_df = _get_nonconserved_counts(
             full_matrix_path, strains,
-            args["strain_cutoff"], args["sep"],
+            args["sep"],
             args["n_threads"],
             flag_file)
 
     if flag_file_path is not None:
         history.add_path("PRIMER ZONE FLAGS", flag_file_path)
         history.add_path("FULL GENOME MATRIX FILE", "NA")
-        flag_dic = parse_flag_file(flag_file_path)
+        flag_df = parse_flag_file(flag_file_path)
+
+    flag_dic = _get_flags_from_counts(
+        flag_df, args["strain_cutoff"])
 
 
     amplicon_filter = AmpliconFilter(
@@ -378,7 +379,7 @@ if __name__ == "__main__":
     )
 
     PARSER.add_argument(
-        "project_dir", metavar='PROJECT_DIR', type=path,
+        "project_dir", metavar='PROJECT_DIR', type=path_type,
         help="Project directory"
     )
 
