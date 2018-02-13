@@ -42,7 +42,7 @@ class Haplotype:
                     else genome_size - 1)
                 upstream_flags = np.array(
                     flag_df[flag_df.Genome == genome].iloc[up_start: up_stop].Flag, dtype=int)
-                downstream_flags = ",".join(np.array(
+                downstream_flags = np.array(
                     flag_df[flag_df.Genome == genome].iloc[down_start: down_stop].Flag, dtype=int)
                 upstream_count = np.array([sum(1 for _ in g[1])
                     for g in it.groupby(
