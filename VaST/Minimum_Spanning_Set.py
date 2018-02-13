@@ -294,11 +294,13 @@ class MinSet:
             line = line.replace("#", "=")
             progress_string += line + "\n"
         percent_complete = self._resolution_index / 100.0
-        ascii_percent = int(55 * percent_complete)
+        percent_complete_str = "Percent Complete {0:5.1f}% ".format(
+            percent_complete * 100) 
+        ascii_percent = int(54 * percent_complete)
         progress_string += "=" * 79 + \
-            "\nPercent Complete {0:0.1f}% ".format(percent_complete*100)
+            "\n" + percent_complete_str
         progress_string += "|" * ascii_percent
-        progress_string += "-" * (55 - ascii_percent)
+        progress_string += "-" * (54 - ascii_percent)
         progress_string += "|\n" + "=" * 79 + "\n\n"
         print progress_string.encode('utf-8')
         self._logger.info(progress_string)
