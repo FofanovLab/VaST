@@ -40,23 +40,23 @@ class Haplotype:
                 down_stop = (stop + primer_zone_size if 
                     stop + primer_zone_size < genome_size
                     else genome_size - 1)
-                upstream_flags = ",".join(np.array(
-                    flag_df[flag_df.Genome == genome].iloc[up_start: up_stop].Flag, dtype=str))
+                upstream_flags = np.array(
+                    flag_df[flag_df.Genome == genome].iloc[up_start: up_stop].Flag, dtype=int))
                 downstream_flags = ",".join(np.array(
-                    flag_df[flag_df.Genome == genome].iloc[down_start: down_stop].Flag, dtype=str))
+                    flag_df[flag_df.Genome == genome].iloc[down_start: down_stop].Flag, dtype=int))
                 upstream_count = np.array([sum(1 for _ in g[1])
                     for g in it.groupby(
-                        upstream_flags) if np.all(g[0])], dtype=int)
+                        np.array(upstream_flags, dtype=bool)) if np.all(g[0])], dtype=int)
                 downstream_count = np.array([sum(1 for _ in g[1])
                     for g in it.groupby(
-                        downstream_flags) if np.all(g[0])], dtype=int)
+                        np.array(downstream_flags, dtype=bool)) if np.all(g[0])], dtype=int)
                 percent_ok = (
                     np.sum(upstream_count) + np.sum(downstream_count))/float(
                         len(upstream_flags) + len(downstream_flags)) * 100
                 med_size = np.median(np.append(upstream_count, downstream_count))
                 self._pattern_dic[pattern][amplicon]['primer_zone'] = {
-                    'upstream': upstream_flags,
-                    'downstream': downstream_flags,
+                    'upstream': ",".join(np.array(upstream_flags, dtype=str)),
+                    'downstream': ",".join(np.array(downstream_flags, dtype=str)),
                     'percent_ok': percent_ok,
                     'med_size': med_size
                 }
