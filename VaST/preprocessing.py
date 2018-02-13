@@ -165,8 +165,8 @@ def _parse_var_matrix(var_matrix_path, strains, sep):
 def _get_flags_helper(chunk):
     logger = logging.getLogger(__name__)
     logger.info(
-        "On chunk: %s - %s", chunk.index.min(),
-        chunk.index.max())
+        "On chunk: %s - %s", chunk.index.min() + 1,
+        chunk.index.max() + 1)
     chunk = chunk.apply(
         lambda x: x.str.upper(), axis=1)
     return chunk.apply(
@@ -211,7 +211,22 @@ def _get_nonconserved_counts(
     logger.info("DONE parsing full genome matrix")
     return flags
 
+def get_flags_from_matrix(
+    file_path, strains, history, project_directory, **kwargs):
+    history.add_path("FULL GENOME MATRIX FILE", file_path)
+    flag_file = project_directory.make_new_file(
+        "flags", "primer_zone_flags", "csv")
+    history.add_path("PRIMER ZONE FLAGS", flag_file)
+    return _get_nonconserved_counts(
+        file_path, strains,
+        kwargs["sep"],
+        kwargs["n_threads"],
+        flag_file)
 
+def get_flags_from_file(file_path, history):
+    history.add_path("PRIMER ZONE FLAGS", file_path)
+    history.add_path("FULL GENOME MATRIX FILE", "NA")
+    return parse_flag_file(file_path)
 
 def _get_flags_from_counts(flag_count_df, strain_cutoff):
     ''' 
@@ -317,21 +332,12 @@ def preprocessing(project_directory, var_matrix_path,
                 len(strains))
 
     if full_matrix_path is not None:
-        history.add_path("FULL GENOME MATRIX FILE", full_matrix_path)
-
-        flag_file = project_directory.make_new_file(
-            "flags", "primer_zone_flags", "csv")
-        history.add_path("PRIMER ZONE FLAGS", flag_file)
-        flag_df = _get_nonconserved_counts(
+        flag_df = get_flags_from_matrix(
             full_matrix_path, strains,
-            args["sep"],
-            args["n_threads"],
-            flag_file)
+            history, project_directory, **args)
 
     if flag_file_path is not None:
-        history.add_path("PRIMER ZONE FLAGS", flag_file_path)
-        history.add_path("FULL GENOME MATRIX FILE", "NA")
-        flag_df = parse_flag_file(flag_file_path)
+        flag_df = get_flags_from_file(flag_file_path, history)
 
     flag_dic = _get_flags_from_counts(
         flag_df, args["strain_cutoff"])
