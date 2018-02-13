@@ -23,7 +23,7 @@ class Haplotype:
         # were not removed due to overlap with other amplicons
         # in the minimum spanning set.
         self._pattern_dic = self._get_selected_amplicons()
-        self._pattern_dic = self._get_flags(
+        self._get_flags(
             flag_file_path, int(primer_zone_size))
 
     def _get_flags(self, flag_file_path, primer_zone_size):
