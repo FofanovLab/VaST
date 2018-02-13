@@ -27,7 +27,7 @@ class Haplotype:
             flag_file_path, int(primer_zone_size))
 
     def _get_flags(self, flag_file_path, primer_zone_size):
-        flag_dic = parse_flag_file(flag_file_path)
+        flag_df = parse_flag_file(flag_file_path)
         for pattern, amplicons in self._pattern_dic.iteritems():
             for amplicon, chars in amplicons.iteritems():
                 genome = chars['g']['name']
@@ -41,9 +41,9 @@ class Haplotype:
                     stop + primer_zone_size < genome_size
                     else genome_size - 1)
                 upstream_flags = np.array(
-                    flag_dic[genome].iloc[up_start: up_stop].Flag, dtype=bool)
+                    flag_df[flag_df.genome == genome].iloc[up_start: up_stop].Flag, dtype=bool)
                 downstream_flags = np.array(
-                    flag_dic[genome].iloc[down_start: down_stop].Flag, dtype=bool)
+                    flag_df[flag_df.genome == genome].iloc[down_start: down_stop].Flag, dtype=bool)
                 upstream_count = np.array([sum(1 for _ in g[1])
                     for g in it.groupby(
                         upstream_flags) if np.all(g[0])], dtype=int)
