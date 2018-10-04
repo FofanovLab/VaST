@@ -461,7 +461,7 @@ if __name__ == "__main__":
         help="Set logging level")
 
     PARSER.add_argument(
-        "-x", "--exclude_strains", type=file, default=None,
+        "-x", "--exclude_strains", type=file_type, default=None,
         help="Path to file containing a list of strains to exclude "
              "from analysis in a single column"
     )
