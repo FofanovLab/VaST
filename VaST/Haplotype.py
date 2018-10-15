@@ -44,14 +44,15 @@ class Haplotype:
                     flag_df[flag_df.Genome == genome].iloc[up_start: up_stop].Flag, dtype=int)
                 downstream_flags = np.array(
                     flag_df[flag_df.Genome == genome].iloc[down_start: down_stop].Flag, dtype=int)
-                upstream_count = np.array([sum(1 for _ in g[1])
-                    for g in it.groupby(
-                        np.array(upstream_flags, dtype=bool)) if np.all(g[0])], dtype=int)
-                downstream_count = np.array([sum(1 for _ in g[1])
-                    for g in it.groupby(
-                        np.array(downstream_flags, dtype=bool)) if np.all(g[0])], dtype=int)
+                upstream_count = np.array([sum([not value for value in run[1]]) for
+                    run in it.groupby(np.array(upstream_flags, dtype=bool))],
+                    dtype=int)
+                downstream_count = np.array(
+                    [sum([not value for value in run[1]]) for
+                    run in it.groupby(np.array(downstream_flags, dtype=bool))],
+                    dtype=int)
                 percent_ok = (
-                    np.sum(upstream_count) + np.sum(downstream_count))/float(
+                    (np.sum(upstream_count) + np.sum(downstream_count))/float(
                         len(upstream_flags) + len(downstream_flags)) * 100
                 med_size = np.median(np.append(upstream_count, downstream_count))
                 self._pattern_dic[pattern][amplicon]['primer_zone'] = {
