@@ -86,7 +86,10 @@ class Patterns:
                     # if this is the only amplicon for the pattern
                     # delete the pattern from dictionary and dataframe
                     del self._patterns[pattern_id]
-                    self._pattern_df.drop(pattern_id, inplace=True)
+                    try:
+                        self._pattern_df.drop(pattern_id, inplace=True)
+                    except ValueError:
+                        self._logger.info("Excluded site already removed: %s", site)
                 del self._amp_2_pattern[site]
             except KeyError:
                 self._logger.warning(
