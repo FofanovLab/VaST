@@ -53,7 +53,7 @@ class Haplotype:
                     dtype=int)
                 percent_ok = (
                     (np.sum(upstream_count) + np.sum(downstream_count))/float(
-                        len(upstream_flags) + len(downstream_flags)) * 100
+                        len(upstream_flags) + len(downstream_flags)) * 100)
                 med_size = np.median(np.append(upstream_count, downstream_count))
                 self._pattern_dic[pattern][amplicon]['primer_zone'] = {
                     'upstream': ",".join(np.array(upstream_flags, dtype=str)),
