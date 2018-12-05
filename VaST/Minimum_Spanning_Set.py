@@ -80,10 +80,16 @@ class MinSet:
                     next_pattern
                 )
             else:
-                next_pattern = self._get_next_pattern()
-                self._logger.info(
-                    "Adding pattern: %s", next_pattern
-                )
+                try:
+                    next_pattern = self._get_next_pattern()
+                    self._logger.info(
+                        "Adding pattern: %s", next_pattern)
+                except ValueError:
+                    go = False
+                    self._logger.info(
+                        "No more patterns are available")
+                    continue
+
             # if overlapping, remove and move to next pattern
             if self._overlapping_pattern(next_pattern):
                 if not required_flag:
