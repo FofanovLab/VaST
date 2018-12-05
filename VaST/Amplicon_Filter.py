@@ -41,6 +41,7 @@ class AmpliconFilter:
             sites = sites.sort_values("Start")
             pos = 0
             filtered_amp_count = 0
+            accepted_amp_count = 0
             current_site = sites.iloc[pos].Start
             last_site = sites.iloc[-1].Start
             genome_size = len(self._flags[genome])
@@ -59,6 +60,7 @@ class AmpliconFilter:
                         current_site = sites.iloc[pos].Start
                     continue
                 self.update_pattern(amplicon, pos, genome_size)
+                accepted_amp_count += 1
                 if len(amplicon) == 1:
                     pos += 1
                 else:
@@ -81,6 +83,7 @@ class AmpliconFilter:
                     current_site = sites.iloc[pos].Start
 
             self._logger.info("%s amplicon(s) filtered", filtered_amp_count)
+            self._logger.info("%s amplicon(s) passed", accepted_amp_count )
         self._logger.info("FINISHED Amplicon Filter")
         return self._patterns
 
