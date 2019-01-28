@@ -88,7 +88,7 @@ Filter file type:
 ### Parameters
 | Parameter  | Description  | Notes  |
 |---|---|---|
-| Strict mode  | VaST ignores missing or ambiguous data in input matrix  |  Speeds up preprocessing ut some sites are lost |
+| Strict mode  | VaST ignores missing or ambiguous data in input matrix  |  Speeds up preprocessing but some sites are lost |
 |  Window Size | Maximum distance between adjacent sites that can be combined into a single amplicon  |The desired amplicon length should be considered when setting the window size. A larger window may increase the number of variant sites that are included in the amplicons making them more efficient   |
 | Primer Zone Size  | Size of the region upstream and downstream of the target to evaluate in the amplicon filter  | The primer zones begin immediately before the first and immediately after the last target site in the window, so the maximum amplicon size is 2 x primer zone size + window size. A smaller primer zone may limit the number of primer options.  |
 |Strain Cutoff |The number of strains at a primer zone site that can have a non-conserved call before the site is flagged | A strain cutoff greater than one will not guarantee that the primer zone sequences are conserved across all of the strains but it may be appropriate in cases where one or a few strains have low sequence coverage|
@@ -193,3 +193,46 @@ Exclude strains from consideration:
                         Path to file containing list of strains (in a single
                         column) that should be excluded (default: None)
 ```
+
+### Output
+The pattern selection module outputs 3 main files: amplicons_{TIMESTAMP}.csv, haplotypes_{TIMESTAMP}.csv, and patterns_{TIMESTAMP}.csv. 
+#### Haplotypes
+
+|                         | Amplicon_Order | Amplicon_ID | Reference | example_1 | example_1_L001::BWA-mem |
+|-------------------------|----------------|-------------|-----------|-----------|-------------------------|
+| 500WT1_test::1373::1373 | 1              | 0           | X         | G         | G                       |
+| 500WT1_test::1374::1374 | 1              | 0           | C         | T         | T                       |
+
+- **First Column:** The site ids
+- **Amplicon_Order:** The order in which each amplicon was added to the set
+- **Amplicon_ID:** A unique identifier for the amplicon which corresponds to information in amplicons_{TIMESTAMP}.csv. Multiple sites may belong to the same amplicon id.
+- **Remaining Columns:** Each remaining column represents the haplotype of the given genome at each site.
+
+#### Amplicons
+
+| Amplicon_ID | Sequence_ID | Start_Position | End_Position | Target_Size | Resolution_Score | Num_of_Sites | Sites                                           | Upstream_Primerzone | Downstream_Primerzone |
+|-------------|-------------|----------------|--------------|-------------|------------------|--------------|-------------------------------------------------|---------------------|-----------------------|
+| 0           | 500WT1_test | 1373           | 1374         | 2           | 66.6666666667    | 2            | 500WT1_test::1373::1373 500WT1_test::1374::1374 | 0,0,0,0,0,0,...     | 0,0,0,0,0,...         |
+
+
+- **Amplicon_ID:** A unique identifier for each amplicon
+- **Sequence_ID:** The name of the sequence where the amplicon was discovered.
+- **Start_Position:** The start position of the amplicon target in the sequence.
+- **End_Position:** The last position of the amplicon target in the sequence.
+- **Target_Size:** The total length of the target region.
+- **Resolution_Score:** The cumulative resolution score for each additional amplicon.
+- **Num_of_sites:** The total number of variant sites that are included in the target.
+- **Sites:** The site ids for each variant site. This corresponds to the first column in haplotypes_{TIMESTAMP}.csv.
+- **Upstream_Primerzone:** A list where each value represents a position in the upstream primer region. The counts provide how many genomes have non-conserved calls at each position. These regions may be avoided for subsequent primer design efforts.
+- **Downstream_Primerzone:** A list where each value represents a position in the downstream primer region. The counts provide how many genomes have non-conserved calls at each position. These regions may be avoided for subsequent primer design efforts.
+
+#### Patterns
+
+|                         | 0    |
+|-------------------------|------|
+| Reference               | (0,) |
+| example_1               | (1,) |
+| example_1_L001::BWA-mem | (1,) |
+
+-**First Column:** Genome ids
+-**Remaining Columns:** Each column represents the pattern of differentiation provided by each amplicon. The column header is the amplicon id that corresponds to the other output files. The differentiation pattern is within the context of all the previous amplicons (i.e. it is not their independent differentiation pattern). Genomes that share the same group number have not been resolved. Some genomes may be members of multiple groups due to ambiguous base calls and will therefore have multiple numbers in the tuple. 
