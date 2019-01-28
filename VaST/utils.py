@@ -94,10 +94,16 @@ class History:
     def __init__(self, history_path, program_name,
                  timestamp=None, path_dict={}, param_dict={},
                  other_dict={}, exists=False):
+  
         self._file = history_path
         self._program_name = program_name
         self._path_dict = path_dict
-        self._param_dict = param_dict
+        self._param_dict = dict(param_dict) #copy to avoid editing
+        if 'sep' in self._param_dict:
+                self._param_dict['sep'] = {
+                ',': 'comma',
+                ' ': "space",
+                "\t": "tab"}[self._param_dict['sep']] 
         self._other_dict = other_dict
         self._timestamp = timestamp
         if exists:

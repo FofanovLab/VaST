@@ -34,6 +34,12 @@ def parse_args(args=None):
     )
 
     parser.add_argument(
+        "--sep", type=str, default="tab",
+        choices=['tab', 'comma', 'space'],
+        help="Specify the file delimiter of variant site matrix"
+    )
+
+    parser.add_argument(
         "--log", type=str, default="./VaST_analysis.log",
         help="Path to log file."
     )
@@ -130,7 +136,7 @@ def get_ordered_patterns(order, patterns):
     return np.array(result, dtype=str)
 
 
-def get_haplotype_matrix(pattern_order, pattern_json, var_matrix_path):
+def get_haplotype_matrix(pattern_order, pattern_json, var_matrix_path, sep):
     """
     Builds a dataframe with columns for site id, amplicon order, amplicon id,
     and for each genome in the SNP matrix which includes the base call for
@@ -145,7 +151,10 @@ def get_haplotype_matrix(pattern_order, pattern_json, var_matrix_path):
     Output: A dataframe
     """
     index_cols = get_ordered_patterns(pattern_order, pattern_json)
-    var_matrix = pd.read_csv(var_matrix_path, index_col=0).loc[index_cols[:,0]]
+    var_matrix = pd.read_csv(
+        var_matrix_path,
+        index_col=0,
+        sep=sep).loc[index_cols[:,0]]
     index_df = pd.DataFrame(
         index_cols[:,1:], index=index_cols[:,0], dtype=int,
         columns = ["Amplicon_Order", "Amplicon_ID"])
@@ -187,7 +196,11 @@ def get_resolution(patterns_df):
         
 
 def format_column(col):
-    return [ast.literal_eval(c) for c in col]
+    try:
+        fmt = [ast.literal_eval(c) for c in col]
+    except ValueError:
+        return col
+
 
 
 def get_resolution_score(pattern_vec):
@@ -253,21 +266,21 @@ def get_summary_data(pattern_dict, resolution_scores, order):
                 int(data['s']) - int(locus) + 1, # size of target
                 score, # Resolution score
                 len(data['sites']), # number of sites
-                data['sites'], # list of sites
+                " ".join([str(d) for d in data['sites']]), # list of sites
                 data['primer_zone']['upstream'], # upstream primer zone
                 data['primer_zone']['downstream']])
     return pd.DataFrame(result,
         columns=[
-            "Pattern ID",
-            "Sequence ID",
-            "Start Position",
-            "End Position",
-            "Target Size",
-            "Resolution Score",
-            "No. of Sites",
+            "Amplicon_ID",
+            "Sequence_ID",
+            "Start_Position",
+            "End_Position",
+            "Target_Size",
+            "Resolution_Score",
+            "Num_of_Sites",
             "Sites",
-            "Upstream Primerzone",
-            "Downstream Primerzone"])
+            "Upstream_Primerzone",
+            "Downstream_Primerzone"])
 
 def counter(start=0):
     while True:
@@ -279,25 +292,28 @@ def get_resolution_matrix(strains, pattern_ids, patterns):
     return pd.DataFrame(patterns, columns=strains, index=pattern_ids).T
 
 
-def main(project_dir, var_matrix_path, log):
+def main(project_dir, var_matrix_path, log, sep):
     config_logging(log, "INFO")
     LOG.info("Starting Analysis")
+    sep = {'comma': ',',
+           'space': ' ',
+           'tab': '\t'}[sep]
     pattern_json = json.loads(open(get_file_from_project(
             project_dir, "./minimum_spanning_set/amplicons_*.json"),
             'r').read())
     best_loci = remove_extra_loci(pattern_json)
     haplotype_df = pd.read_csv(get_file_from_project(
-        project_dir, "./minimum_spanning_set/haplotype_*.csv"), index_col=0)
+        project_dir, "./minimum_spanning_sehaplotype_*.csv"), index_col=0)
     pattern_order = list(haplotype_df.columns)
     write_dataframe_to_file(get_haplotype_matrix(
-        pattern_order, best_loci, var_matrix_path),
+        pattern_order, best_loci, var_matrix_path, sep),
         os.path.join(project_dir,
             "minimum_spanning_set/haplotypes_matrix.csv"))
     scores, patterns = get_resolution(haplotype_df)
     write_dataframe_to_file(
         get_summary_data(best_loci, scores, pattern_order),
         os.path.join(project_dir,
-        "minimum_spanning_set/summary.csv"), index=False)
+        "minimum_spanning_set/amplicon_matrix.csv"), index=False)
     write_dataframe_to_file(
         get_resolution_matrix(
             haplotype_df.index, pattern_order, patterns),
