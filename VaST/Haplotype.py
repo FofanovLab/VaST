@@ -3,12 +3,18 @@ import logging
 import numpy as np
 import itertools as it
 from utils import parse_flag_file
+from analyze import (
+    remove_extra_loci, get_resolution,
+    get_summary_data, get_haplotype_matrix,
+    get_resolution_matrix)
 
 
 class Haplotype:
     def __init__(self, patterns, minimum_spanning_set,
-                 flag_file_path, primer_zone_size):
+                 flag_file_path, primer_zone_size, variant_matrix, sep):
         self._logger = logging.getLogger(__name__)
+        self._variant_matrix = variant_matrix
+        self._sep = sep
         self._minimum_spanning_set = minimum_spanning_set
         self._selected_patterns = \
             self._minimum_spanning_set.get_selected_patterns()
@@ -82,6 +88,10 @@ class Haplotype:
             file_name)
         with open(file_name, 'w') as out:
             out.write(json.dumps(self._pattern_dic))
+    
+    def write_haplotype_matrix(self, file_name):
+        self._logger.info("Writing haplotype matrix to %s", file_name)
+
 
     def write_suggested_amplicons(self, file_name):
         self._logger.info(
@@ -89,6 +99,27 @@ class Haplotype:
         )
         with open(file_name, 'w') as out:
             out.write()
+
+    def write_output(self, haplotype_output, pattern_output, amplicon_output):
+        best_loci = remove_extra_loci(self._pattern_dic)
+        pattern_order = self._pattern_df.columns
+        haplotype_matrix = get_haplotype_matrix(
+            pattern_order, best_loci, self._variant_matrix, self._sep)
+        self._logger.info("Writing haplotype matrix to %s", haplotype_output)
+        haplotype_matrix.to_csv(haplotype_output)
+        self._logger.info("Writing pattern matrix to %s", pattern_output)
+        scores, patterns = get_resolution(self._pattern_df)
+        pattern_matrix = get_resolution_matrix(
+            self._pattern_df.index, pattern_order, patterns)
+        pattern_matrix.to_csv(pattern_output)
+        self._logger.info("Writing amplicon matrix to %s", amplicon_output)
+        amplicon_matrix = get_summary_data(best_loci, scores, pattern_order)
+        amplicon_matrix.to_csv(amplicon_output, index=None)
+
+
+
+
+
 
     def write_summary(self, file_name):
         self._logger.info(

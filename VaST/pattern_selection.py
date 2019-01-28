@@ -92,6 +92,11 @@ def pattern_selection(project_directory, **kwargs):
 
     # Get JSON file path from preprocessing step
     json_file = preprocessing_history.get_path("PATTERN JSON")
+    variant_matrix = preprocessing_history.get_path("VARIANT SITE MATRIX FILE")
+    sep = {
+        'comma': ",",
+        "space": " ",
+        "tab": "\t"}[preprocessing_history.get_parameter("SEP")]
 
     # Get flag file path from preprocessing step
     flag_file = preprocessing_history.get_path("PRIMER ZONE FLAGS")
@@ -116,13 +121,26 @@ def pattern_selection(project_directory, **kwargs):
         int(preprocessing_history.get_parameter("PZ_SIZE")))
 
     haplotype_file = project_directory.make_new_file(
-        "minimum_spanning_set", "haplotype", "csv")
+        "minimum_spanning_set", ".haplotype", "csv")
     amplicon_json = project_directory.make_new_file(
-        "minimum_spanning_set", "amplicons", "json")
+        "minimum_spanning_set", ".amplicons", "json")
+    haplotype_matrix = project_directory.make_new_file(
+        "minimum_spanning_set", "haplotypes", "csv"
+    )
+    amplicon_matrix = project_directory.make_new_file(
+        "minimum_spanning_set", "amplicons", "csv"
+    )
+    pattern_matrix = project_directory.make_new_file(
+        "minimum_spanning_set", "patterns", "csv"
+    )
     summary_file = project_directory.make_new_file(
         "summary", "summary")
 
-    haplotype = Haplotype(patterns, best_set, flag_file, primer_zone_size)
+    haplotype = Haplotype(
+        patterns,
+        best_set,
+        flag_file,
+        primer_zone_size, variant_matrix, sep)
 
     haplotype.write_haplotype(haplotype_file)
     history.add_path("Haplotype File", haplotype_file)
@@ -132,6 +150,13 @@ def pattern_selection(project_directory, **kwargs):
 
     haplotype.write_summary(summary_file)
     history.add_path("Summary", summary_file)
+
+    haplotype.write_output(
+        haplotype_matrix, pattern_matrix, amplicon_matrix)
+    history.add_path("Haplotype Matrix", haplotype_matrix)
+    history.add_path("Amplicon Matrix", amplicon_matrix)
+    history.add_path("Pattern Matrix", pattern_matrix)
+
 
     logger.info("FINISHED Pattern Selection")
     run_time = time.time() - start_time
